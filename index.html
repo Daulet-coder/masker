@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>NER Masking Tool - Advanced</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>🔐 Named Entity Masking Tool</h1>
+            <p class="subtitle">Secure your data by masking sensitive named entities from text or documents. Upload a file or paste text below.</p>
+        </header>
+
+        <form method="POST" enctype="multipart/form-data" class="form" id="nerForm">
+            <div class="input-section">
+                <div class="file-input-group">
+                    <label for="fileInput" class="file-label-button" id="fileBtnLabel">
+                        <span class="file-label-icon">📁</span>
+                        <span class="file-label-text">Choose File</span>
+                    </label>
+                    <input type="file" name="file" id="fileInput" onchange="handleFileChange(event)" accept=".jpg,.jpeg,.png,.pdf,.docx">
+                    <input type="text" id="fileNameInputDisplay" class="file-name-input-display"
+                           placeholder="Allowed: .jpg, .jpeg, .png, .pdf, .docx" readonly>
+                    <button type="button" id="removeFileBtn" class="remove-file-btn" onclick="removeFile()">✖️</button>
+                </div>
+                <textarea name="text" id="textArea"
+                          placeholder="Or type/paste your text directly here...">{{ original_text or "" }}</textarea>
+            </div>
+            <div class="submit-action">
+                <button type="submit" class="submit-btn">
+                    <span class="submit-btn-icon">🚀</span> Process Input
+                </button>
+            </div>
+        </form>
+
+        {% if original_text or masked_text or submitted_file_name %}
+        <div class="results-section">
+            {% if submitted_file_name and not original_text and not masked_text %}
+            <div class="info-block">
+                <p>Processed file: <strong>{{ submitted_file_name }}</strong>. No text was extracted, or the file was empty.</p>
+            </div>
+            {% endif %}
+
+            {% if original_text or masked_text %}
+            <div class="results-grid">
+                <div class="result-block original-text-block">
+                    <h2>📄 Original Text</h2>
+                    <pre id="originalTextPre">{{ original_text }}</pre>
+                </div>
+                <div class="result-block masked-text-block">
+                    <h2>🛡️ Masked Text</h2>
+                    <pre id="maskedTextPre">{{ masked_text }}</pre>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if masked_text and chatgpt_configured %} {# Показываем секцию ChatGPT только если есть Masked Text И GPT настроен #}
+            <div class="chatgpt-section">
+                <h2><span class="chat-icon">💬</span> Задать вопрос по Masked Text (GPT-4o mini)</h2>
+                <div class="chatgpt-input-area">
+                    <textarea id="chatgptQuestion" placeholder="Введите ваш вопрос здесь..."></textarea>
+                    <button id="askChatGptButton" class="submit-btn gpt-btn">
+                        <span class="submit-btn-icon">💡</span> Спросить GPT
+                    </button>
+                </div>
+                <div id="chatgptLoading" class="loading-indicator" style="display:none;">
+                    <div class="spinner"></div>
+                    <span>GPT думает...</span>
+                </div>
+                <div id="chatgptResponseArea" class="chatgpt-response">
+                    <p class="placeholder">Ответ GPT появится здесь...</p>
+                </div>
+            </div>
+            {% elif masked_text and not chatgpt_configured %}
+             <div class="info-block" style="margin-top: 30px; background-color: #fff3cd; border-color: #ffeeba; color: #856404;">
+                <p>Функция вопросов к GPT неактивна. Пожалуйста, убедитесь, что API ключ OpenAI корректно настроен.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileNameInputDisplay = document.getElementById('fileNameInputDisplay');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const textArea = document.getElementById('textArea');
+        const fileBtnLabelText = document.querySelector('#fileBtnLabel .file-label-text');
+        const fileBtnLabelIcon = document.querySelector('#fileBtnLabel .file-label-icon');
+
+        const defaultFileNamePlaceholder = "Allowed: .jpg, .jpeg, .png, .pdf, .docx";
+        const defaultTextAreaPlaceholder = "Or type/paste your text directly here...";
+        const fileSelectedTextAreaPlaceholder = "File selected. Text input disabled.";
+
+        const submittedFileNameFromServer = "{{ submitted_file_name | e }}";
+        const initialServerText = `{{ original_text | e }}`;
+
+
+        function updateUIForFileState(isFileSelected, fileName = '') {
+            if (isFileSelected) {
+                fileNameInputDisplay.value = fileName;
+                removeFileBtn.style.display = 'inline-flex';
+                fileBtnLabelText.textContent = 'Change File';
+                fileBtnLabelIcon.textContent = '🔄';
+                textArea.disabled = true;
+                if (fileName !== submittedFileNameFromServer || !initialServerText) {
+                    textArea.value = "";
+                }
+                textArea.placeholder = fileSelectedTextAreaPlaceholder;
+                textArea.classList.add('disabled-textarea');
+            } else {
+                fileInput.value = '';
+                fileNameInputDisplay.value = '';
+                fileNameInputDisplay.placeholder = defaultFileNamePlaceholder;
+                removeFileBtn.style.display = 'none';
+                fileBtnLabelText.textContent = 'Choose File';
+                fileBtnLabelIcon.textContent = '📁';
+                textArea.disabled = false;
+                textArea.classList.remove('disabled-textarea');
+                if (submittedFileNameFromServer && !isFileSelected) {
+                     textArea.value = "";
+                     textArea.placeholder = defaultTextAreaPlaceholder;
+                } else if (!submittedFileNameFromServer && initialServerText) {
+                    textArea.value = initialServerText;
+                    textArea.placeholder = defaultTextAreaPlaceholder;
+                } else {
+                    textArea.value = "";
+                    textArea.placeholder = defaultTextAreaPlaceholder;
+                }
+                 if (textArea.value.trim()){
+                    textArea.placeholder = "Edit your text or upload a new file...";
+                }
+            }
+        }
+
+        function handleFileChange(event) {
+            const input = event.target;
+            if (input.files.length > 0) {
+                updateUIForFileState(true, input.files[0].name);
+            } else {
+                if (!fileInput.value) {
+                    updateUIForFileState(false);
+                }
+            }
+        }
+
+        function removeFile() {
+            updateUIForFileState(false);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (submittedFileNameFromServer) {
+                updateUIForFileState(true, submittedFileNameFromServer);
+                textArea.value = initialServerText;
+                if (textArea.value.trim()) {
+                     textArea.placeholder = fileSelectedTextAreaPlaceholder;
+                } else {
+                     textArea.placeholder = "File processed, no text extracted. Text input disabled.";
+                }
+            } else {
+                updateUIForFileState(false);
+                textArea.value = initialServerText;
+                if (textArea.value.trim()){
+                    textArea.placeholder = "Edit your text or upload a new file...";
+                } else {
+                    textArea.placeholder = defaultTextAreaPlaceholder;
+                }
+            }
+
+            const askChatGptButton = document.getElementById('askChatGptButton');
+            const chatgptQuestionTextarea = document.getElementById('chatgptQuestion');
+            const chatgptResponseArea = document.getElementById('chatgptResponseArea');
+            const chatgptLoading = document.getElementById('chatgptLoading');
+            const maskedTextPre = document.getElementById('maskedTextPre');
+            const chatGptConfigured = {{ chatgpt_configured | tojson }}; // Используем tojson для корректной передачи boolean
+
+            if (askChatGptButton && chatGptConfigured) {
+                askChatGptButton.addEventListener('click', async () => {
+                    const maskedText = maskedTextPre ? maskedTextPre.innerText : '';
+                    const userQuestion = chatgptQuestionTextarea.value.trim();
+
+                    if (!maskedText) {
+                        chatgptResponseArea.innerHTML = '<p class="error">Ошибка: Masked Text пуст. Сначала обработайте текст.</p>';
+                        chatgptResponseArea.style.display = 'block';
+                        return;
+                    }
+                    if (!userQuestion) {
+                        chatgptResponseArea.innerHTML = '<p class="error">Ошибка: Введите ваш вопрос.</p>';
+                        chatgptResponseArea.style.display = 'block';
+                        return;
+                    }
+
+                    chatgptLoading.style.display = 'flex';
+                    chatgptResponseArea.style.display = 'none';
+                    chatgptResponseArea.innerHTML = '<p class="placeholder">Ответ GPT появится здесь...</p>';
+
+
+                    try {
+                        const response = await fetch('/ask_chatgpt', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                masked_text: maskedText,
+                                question: userQuestion,
+                            }),
+                        });
+
+                        chatgptLoading.style.display = 'none';
+                        chatgptResponseArea.style.display = 'block';
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        const formattedAnswer = data.answer.replace(/\n/g, '<br>');
+                        chatgptResponseArea.innerHTML = `<p>${formattedAnswer}</p>`;
+                        chatgptQuestionTextarea.value = '';
+
+                    } catch (error) {
+                        console.error('Ошибка при запросе к ChatGPT:', error);
+                        chatgptLoading.style.display = 'none';
+                        chatgptResponseArea.style.display = 'block';
+                        chatgptResponseArea.innerHTML = `<p class="error">Произошла ошибка: ${error.message}</p>`;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

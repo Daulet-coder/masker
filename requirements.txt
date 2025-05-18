@@ -1,0 +1,11 @@
+torch
+transformers
+spacy
+accelerate
+flask
+openai
+opencv-python
+Pillow
+pytesseract
+pdf2image
+python-docx
