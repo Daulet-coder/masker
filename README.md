@@ -19,7 +19,8 @@ Frontend (UI):
 User-friendly drag-and-drop interface with an integrated chatbot.
 
 Backend:
-NLP module based on BERT and NER models
+NLP module based on RoBERTa and NER models
+The accuracy of the model is 98%
 Document processing (PDF, DOCX — using pdf2image and python-docx)
 Text detection in images (via OpenCV)
 
@@ -40,6 +41,8 @@ Output: Меня зовут  *** Мой ИИН: * Рабочий email: * Род
 
 ![image](https://github.com/user-attachments/assets/b85f4614-2147-48b7-84b0-786393b79bb1)
 ![image](https://github.com/user-attachments/assets/aa83dc39-ac47-4e0c-8d47-a014ddf9cf70)
+
+Thanks to this app, you can handle AI without worrying about your data. You can send files or text knowing that confidential information is hidden.
 
 
 
